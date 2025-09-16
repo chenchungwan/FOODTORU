@@ -6,5 +6,7 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to camera to take photos of your meals for calorie analysis.</string>
 </dict>
 </plist>
