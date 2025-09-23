@@ -1,0 +1,60 @@
+{
+  "identifier" : "FoodToru_Products",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "askToBuyEnabled" : false,
+    "failTransactionsEnabled" : false,
+    "locale" : "en_US",
+    "storefront" : "USA",
+    "subscriptionRenewalRate" : "automatic"
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21482456",
+      "localizations" : [
+        {
+          "description" : "Unlimited meal analysis and nutritional insights",
+          "displayName" : "FoodToru Premium",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "FoodToru Premium",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "0.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "1234567890",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited meal analysis and nutritional insights",
+              "displayName" : "Monthly Subscription",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.foodtoru.subscription.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly Subscription",
+          "subscriptionPeriod" : "P1M",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
