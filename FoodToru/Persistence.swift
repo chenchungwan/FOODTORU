@@ -6,9 +6,14 @@
 //
 
 import CoreData
+import SwiftUI
 
-struct PersistenceController {
+class PersistenceController: ObservableObject {
     static let shared = PersistenceController()
+    
+    // Error handling for Core Data operations
+    @Published var lastError: CoreDataError?
+    private let logger = Logger.shared
 
     @MainActor
     static let preview: PersistenceController = {
@@ -21,10 +26,14 @@ struct PersistenceController {
         do {
             try viewContext.save()
         } catch {
-            // Replace this implementation with code to handle the error appropriately.
-            // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
+            // Handle Core Data save error in preview
             let nsError = error as NSError
-            fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+            let coreDataError = CoreDataErrorHandler.handleSaveError(nsError)
+            CoreDataErrorHandler.logError(coreDataError, context: "Preview Data Setup")
+            
+            // For preview, we'll just log the error and continue
+            // In a real app, you might want to show an error state
+            Logger.shared.warning("Preview data setup failed, but continuing", context: "Preview")
         }
         return result
     }()
@@ -36,22 +45,77 @@ struct PersistenceController {
         if inMemory {
             container.persistentStoreDescriptions.first!.url = URL(fileURLWithPath: "/dev/null")
         }
-        container.loadPersistentStores(completionHandler: { (storeDescription, error) in
+        container.loadPersistentStores(completionHandler: { [weak self] (storeDescription, error) in
             if let error = error as NSError? {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-
-                /*
-                 Typical reasons for an error here include:
-                 * The parent directory does not exist, cannot be created, or disallows writing.
-                 * The persistent store is not accessible, due to permissions or data protection when the device is locked.
-                 * The device is out of space.
-                 * The store could not be migrated to the current model version.
-                 Check the error message to determine what the actual problem was.
-                 */
-                fatalError("Unresolved error \(error), \(error.userInfo)")
+                // Handle Core Data store loading error gracefully
+                let coreDataError = CoreDataErrorHandler.handleStoreLoadError(error)
+                CoreDataErrorHandler.logError(coreDataError, context: "Store Loading")
+                
+                // Store the error for UI to display
+                DispatchQueue.main.async {
+                    self?.lastError = coreDataError
+                }
+                
+                // Attempt to create a new store as fallback
+                self?.createFallbackStore()
             }
         })
         container.viewContext.automaticallyMergesChangesFromParent = true
+    }
+    
+    // MARK: - Error Recovery Methods
+    
+    private func createFallbackStore() {
+        logger.debug("Attempting to create fallback store", context: "Core Data")
+        
+        // Check if we already have a working store
+        if !container.persistentStoreCoordinator.persistentStores.isEmpty {
+            logger.debug("Store already exists, clearing error", context: "Core Data")
+            DispatchQueue.main.async {
+                self.lastError = nil
+            }
+            return
+        }
+        
+        // Create a new store description with a different name
+        let fallbackStoreDescription = NSPersistentStoreDescription()
+        fallbackStoreDescription.url = getFallbackStoreURL()
+        fallbackStoreDescription.type = NSSQLiteStoreType
+        
+        container.persistentStoreDescriptions = [fallbackStoreDescription]
+        
+        container.loadPersistentStores { [weak self] (storeDescription, error) in
+            if let error = error {
+                self?.logger.coreDataError("Fallback store creation failed: \(error.localizedDescription)", context: "Core Data")
+                DispatchQueue.main.async {
+                    self?.lastError = .storeLoadFailed("Unable to create data store. The app may not function properly.")
+                }
+            } else {
+                self?.logger.coreDataSuccess("Fallback store created", context: "Core Data")
+                DispatchQueue.main.async {
+                    self?.lastError = nil
+                }
+            }
+        }
+    }
+    
+    private func getFallbackStoreURL() -> URL {
+        let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        return documentsDirectory.appendingPathComponent("FoodToru_Fallback.sqlite")
+    }
+    
+    // MARK: - Public Error Handling Methods
+    
+    func clearError() {
+        lastError = nil
+    }
+    
+    func retryStoreLoading() {
+        logger.debug("Retrying store loading", context: "Core Data")
+        lastError = nil
+        
+        // Clear any existing error and attempt to create a new fallback store
+        // This is safer than trying to reload an existing store
+        createFallbackStore()
     }
 }

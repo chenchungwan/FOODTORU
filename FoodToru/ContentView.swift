@@ -11,9 +11,12 @@ import CoreData
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @StateObject private var claudeService = ClaudeService()
+    @StateObject private var persistenceController = PersistenceController.shared
     @State private var showingCamera = false
     @State private var selectedImage: UIImage?
     @State private var showingSettings = false
+    
+    private let logger = Logger.shared
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: false)],
@@ -78,38 +81,64 @@ struct ContentView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
-            .onChange(of: selectedImage) { newImage in
+            .onChange(of: selectedImage) { _, newImage in
                 if let image = newImage {
                     analyzeMeal(image: image)
                 }
             }
-            .alert("Error", isPresented: .constant(claudeService.errorMessage != nil)) {
-                Button("OK") {
-                    claudeService.errorMessage = nil
+            .alert("Error", isPresented: .constant(claudeService.errorMessage != nil || persistenceController.lastError != nil)) {
+                if persistenceController.lastError != nil {
+                    Button("Retry") {
+                        persistenceController.retryStoreLoading()
+                    }
+                    Button("OK") {
+                        persistenceController.clearError()
+                    }
+                } else {
+                    Button("OK") {
+                        claudeService.errorMessage = nil
+                    }
                 }
             } message: {
-                Text(claudeService.errorMessage ?? "")
+                if let claudeError = claudeService.errorMessage {
+                    Text(claudeError)
+                } else if let coreDataError = persistenceController.lastError {
+                    VStack {
+                        Text(coreDataError.localizedDescription)
+                        if let suggestion = coreDataError.recoverySuggestion {
+                            Text(suggestion)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
             .overlay(
                 Group {
                     if claudeService.isLoading {
-                        VStack {
-                            ProgressView("Analyzing meal...")
-                                .padding()
-                                .background(Color.black.opacity(0.7))
-                                .cornerRadius(10)
-                        }
+                        MealAnalysisLoadingView()
                     }
                 }
             )
         }
         .onAppear {
+            #if DEBUG
+            KeychainServiceTests.runTests()
+            ErrorHandlingTests.runTests()
+            #endif
             testAPIConnection()
         }
     }
 
     private func testAPIConnection() {
         Task {
+            if !claudeService.isAPIKeyConfigured() {
+                await MainActor.run {
+                    claudeService.errorMessage = "No API key configured. Please set your Claude API key in Settings."
+                }
+                return
+            }
+            
             let isConnected = await claudeService.testAPIConnection()
             if !isConnected {
                 await MainActor.run {
@@ -130,16 +159,21 @@ struct ContentView: View {
                     newItem.ingredients = analysis.ingredients.joined(separator: ", ")
                     newItem.replacementIngredients = analysis.replacementIngredients.joined(separator: ", ")
                     
-                    print("💾 Saving meal data:")
-                    print("  Ingredients: \(newItem.ingredients ?? "None")")
-                    print("  Replacement Ingredients: \(newItem.replacementIngredients ?? "None")")
+                    logger.debug("Saving meal data", context: "Meal Save")
                     newItem.analysis = analysis.analysis
                     newItem.photoData = image.jpegData(compressionQuality: 0.8)
                     
                     do {
                         try viewContext.save()
                     } catch {
-                        print("Failed to save meal: \(error)")
+                        let nsError = error as NSError
+                        let coreDataError = CoreDataErrorHandler.handleSaveError(nsError)
+                        CoreDataErrorHandler.logError(coreDataError, context: "Meal Save")
+                        
+                        // Show user-friendly error message
+                        DispatchQueue.main.async {
+                            self.persistenceController.lastError = coreDataError
+                        }
                     }
                 }
             }
@@ -153,10 +187,18 @@ struct ContentView: View {
             do {
                 try viewContext.save()
             } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
+                // Handle Core Data save error gracefully
                 let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+                let coreDataError = CoreDataErrorHandler.handleSaveError(nsError)
+                CoreDataErrorHandler.logError(coreDataError, context: "Delete Operation")
+                
+                // Show user-friendly error message
+                DispatchQueue.main.async {
+                    self.persistenceController.lastError = coreDataError
+                }
+                
+                // Attempt to rollback the changes
+                viewContext.rollback()
             }
         }
     }

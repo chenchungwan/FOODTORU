@@ -9,11 +9,41 @@ import SwiftUI
 
 struct SettingsView: View {
     @StateObject private var userSettings = UserSettings()
+    @StateObject private var claudeService = ClaudeService()
     @Environment(\.presentationMode) var presentationMode
+    
+    @State private var apiKey = ""
+    @State private var showingAPIKeyAlert = false
+    @State private var apiKeyStatus = "Not configured"
     
     var body: some View {
         NavigationView {
             Form {
+                Section(header: Text("API Configuration")) {
+                    HStack {
+                        Text("Claude API Key")
+                        Spacer()
+                        Text(apiKeyStatus)
+                            .foregroundColor(apiKeyStatus == "Configured" ? .green : .orange)
+                    }
+                    
+                    Button(action: {
+                        showingAPIKeyAlert = true
+                    }) {
+                        Text(apiKeyStatus == "Configured" ? "Update API Key" : "Set API Key")
+                            .foregroundColor(.blue)
+                    }
+                    
+                    if apiKeyStatus == "Configured" {
+                        Button(action: {
+                            deleteAPIKey()
+                        }) {
+                            Text("Remove API Key")
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+                
                 Section(header: Text("Unit System")) {
                     Picker("Unit System", selection: $userSettings.unitSystem) {
                         ForEach(UnitSystem.allCases, id: \.self) { unit in
@@ -103,9 +133,22 @@ struct SettingsView: View {
         }
         .onAppear {
             loadSettings()
+            updateAPIKeyStatus()
         }
         .onDisappear {
             saveSettings()
+        }
+        .alert("Claude API Key", isPresented: $showingAPIKeyAlert) {
+            TextField("Enter your Claude API key", text: $apiKey)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+            Button("Save") {
+                saveAPIKey()
+            }
+            Button("Cancel", role: .cancel) {
+                apiKey = ""
+            }
+        } message: {
+            Text("Enter your Claude API key from Anthropic Console. The key will be stored securely on your device.")
         }
     }
     
@@ -137,5 +180,50 @@ struct SettingsView: View {
         UserDefaults.standard.set(userSettings.age, forKey: "age")
         UserDefaults.standard.set(userSettings.unitSystem.rawValue, forKey: "unitSystem")
         UserDefaults.standard.set(userSettings.preferredExercise.rawValue, forKey: "preferredExercise")
+    }
+    
+    // MARK: - API Key Management
+    
+    private func updateAPIKeyStatus() {
+        if claudeService.isAPIKeyConfigured() {
+            apiKeyStatus = "Configured"
+        } else {
+            apiKeyStatus = "Not configured"
+        }
+    }
+    
+    private func saveAPIKey() {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if KeychainService.shared.isValidAPIKey(trimmedKey) {
+            if KeychainService.shared.saveAPIKey(trimmedKey) {
+                apiKeyStatus = "Configured"
+                apiKey = ""
+                
+                // Test the API connection
+                Task {
+                    let isConnected = await claudeService.testAPIConnection()
+                    if !isConnected {
+                        await MainActor.run {
+                            apiKeyStatus = "Invalid key"
+                        }
+                    }
+                }
+            } else {
+                apiKeyStatus = "Save failed"
+            }
+        } else {
+            apiKeyStatus = "Invalid format"
+        }
+    }
+    
+    private func deleteAPIKey() {
+        if KeychainService.shared.deleteAPIKey() {
+            apiKeyStatus = "Not configured"
+        }
     }
 }

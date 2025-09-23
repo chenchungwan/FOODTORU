@@ -22,11 +22,10 @@ FoodToru is a SwiftUI app that allows users to take photos of their meals and ge
 ### 1. Claude API Key Setup
 
 1. Get your Claude API key from [Anthropic Console](https://console.anthropic.com/)
-2. Open `ClaudeService.swift` in Xcode
-3. Replace `YOUR_CLAUDE_API_KEY` with your actual API key:
-   ```swift
-   private let apiKey = "your-actual-api-key-here"
-   ```
+2. Open the app and tap the Settings gear icon
+3. Tap "Set API Key" in the API Configuration section
+4. Enter your Claude API key - it will be stored securely on your device
+5. The app will automatically test the connection to verify your key works
 
 ### 2. Build and Run
 
@@ -91,10 +90,11 @@ The app uses the MET (Metabolic Equivalent of Task) system to calculate calorie 
 
 If you're getting "API request failed" errors, check the following:
 
-1. **Internet Connection**: Ensure you have a stable internet connection
-2. **API Key**: Verify your Claude API key is correct and active
-3. **API Credits**: Check if you have sufficient API credits in your Anthropic account
-4. **Debug Logs**: Check the Xcode console for detailed error messages
+1. **API Key Configuration**: Go to Settings and verify your API key is configured correctly
+2. **Internet Connection**: Ensure you have a stable internet connection
+3. **API Key Validity**: Verify your Claude API key is correct and active
+4. **API Credits**: Check if you have sufficient API credits in your Anthropic account
+5. **Debug Logs**: Check the Xcode console for detailed error messages
 
 ### Common Issues
 
