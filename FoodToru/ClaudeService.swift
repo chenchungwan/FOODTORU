@@ -34,7 +34,7 @@ class ClaudeService: ObservableObject {
     
     @Published var isLoading = false
     @Published var errorMessage: String?
-    private var workingModel: String = "claude-3-5-sonnet-20241022" // Default model
+    private var workingModel: String = "claude-opus-4-1-20250805" // Default model
     
     // Check if API key is configured
     func isAPIKeyConfigured() -> Bool {
@@ -48,8 +48,9 @@ class ClaudeService: ObservableObject {
             return false
         }
         let modelsToTry = [
+            "claude-opus-4-1-20250805",
             "claude-3-5-sonnet-20241022",
-            "claude-3-opus-20240229", 
+            "claude-3-opus-20240229",
             "claude-3-sonnet-20240229",
             "claude-3-haiku-20240307"
         ]
