@@ -75,6 +75,60 @@ class KeychainService {
         return getAPIKey() != nil
     }
     
+    // MARK: - Pre-configured API Key
+    
+    /// Gets the pre-configured API key from environment variables only
+    /// This is more secure than storing in Info.plist which can be extracted
+    /// Environment variables are only available at runtime and not embedded in the app bundle
+    private func getPreconfiguredAPIKey() -> String? {
+        // Get from environment variable (for development/testing)
+        // This is more secure as it's not embedded in the app bundle
+        if let envKey = ProcessInfo.processInfo.environment["CLAUDE_API_KEY"], !envKey.isEmpty {
+            return envKey
+        }
+        
+        return nil
+    }
+    
+    /// Initializes the Keychain with a pre-configured API key if available
+    /// This is called automatically on app launch if no key exists in Keychain
+    func initializePreconfiguredKeyIfNeeded() {
+        // Check if there's already a valid key in Keychain
+        if let existingKey = getAPIKey(), isValidAPIKey(existingKey) {
+            logger.debug("Valid API key already exists in Keychain, skipping pre-configured key", context: "Keychain")
+            return
+        }
+        
+        // If there's an invalid key, clear it first
+        if hasAPIKey() {
+            logger.debug("Invalid API key found in Keychain, clearing it", context: "Keychain")
+            _ = deleteAPIKey()
+        }
+        
+        // Try to get pre-configured key
+        if let preconfiguredKey = getPreconfiguredAPIKey() {
+            logger.debug("Found pre-configured API key from environment variable", context: "Keychain")
+            if isValidAPIKey(preconfiguredKey) {
+                if saveAPIKey(preconfiguredKey) {
+                    logger.info("Pre-configured API key successfully stored in Keychain", context: "Keychain")
+                } else {
+                    logger.logError("Failed to save pre-configured API key to Keychain", context: "Keychain")
+                }
+            } else {
+                logger.warning("Pre-configured API key format is invalid. Expected format: sk-ant-...", context: "Keychain")
+            }
+        } else {
+            logger.debug("No pre-configured API key found in environment variable CLAUDE_API_KEY", context: "Keychain")
+        }
+    }
+    
+    /// Force re-initialization of pre-configured key (useful for debugging)
+    func forceReinitializePreconfiguredKey() {
+        logger.debug("Force re-initializing pre-configured API key", context: "Keychain")
+        _ = deleteAPIKey()
+        initializePreconfiguredKeyIfNeeded()
+    }
+    
     // MARK: - Validation
     
     func isValidAPIKey(_ apiKey: String) -> Bool {
@@ -89,6 +143,13 @@ class KeychainService {
             logger.keychainOperation("Status Check", success: true, context: "Keychain")
         } else {
             logger.keychainOperation("Status Check", success: false, context: "Keychain")
+        }
+        
+        // Check if environment variable is set
+        if let envKey = ProcessInfo.processInfo.environment["CLAUDE_API_KEY"] {
+            logger.debug("Environment variable CLAUDE_API_KEY is set (length: \(envKey.count))", context: "Keychain")
+        } else {
+            logger.debug("Environment variable CLAUDE_API_KEY is NOT set", context: "Keychain")
         }
     }
     #endif

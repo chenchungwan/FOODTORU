@@ -126,6 +126,8 @@ struct ContentView: View {
             KeychainServiceTests.runTests()
             ErrorHandlingTests.runTests()
             #endif
+            // Ensure pre-configured API key is initialized (backup in case app init timing is off)
+            KeychainService.shared.initializePreconfiguredKeyIfNeeded()
             testAPIConnection()
         }
     }

@@ -130,14 +130,28 @@ class ClaudeService: ObservableObject {
             return nil
         }
         
-        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+        // Validate and compress image
+        let maxImageSize: Int = 5 * 1024 * 1024 // 5MB limit
+        var compressionQuality: CGFloat = 0.8
+        var imageData = image.jpegData(compressionQuality: compressionQuality)
+        
+        // Reduce quality if image is too large
+        while let data = imageData, data.count > maxImageSize && compressionQuality > 0.1 {
+            compressionQuality -= 0.1
+            imageData = image.jpegData(compressionQuality: compressionQuality)
+        }
+        
+        guard let finalImageData = imageData else {
             await MainActor.run {
                 self.errorMessage = "Failed to process image"
             }
             return nil
         }
         
-        let base64Image = imageData.base64EncodedString()
+        // Log image size for debugging
+        logger.debug("Image size: \(finalImageData.count) bytes (compression: \(compressionQuality))", context: "Meal Analysis")
+        
+        let base64Image = finalImageData.base64EncodedString()
         
         let requestBody: [String: Any] = [
             "model": workingModel,
@@ -148,7 +162,7 @@ class ClaudeService: ObservableObject {
                     "content": [
                         [
                             "type": "text",
-                            "text": "Analyze this food image and provide: 1) The name of the meal/dish, 2) Estimated total calories, 3) List of main ingredients, 4) Healthier replacement ingredient suggestions, 5) Brief nutritional analysis. Format the response as JSON with keys: mealName, calories, ingredients (array), replacementIngredients (array), analysis."
+                            "text": "Analyze this food image and provide: 1) The name of the meal/dish, 2) Estimated total calories, 3) List of main ingredients, 4) Healthier replacement ingredient suggestions, 5) Brief nutritional analysis. Return ONLY valid JSON without any markdown formatting, code blocks, or extra text. Use this exact format with keys: mealName (string), calories (integer), ingredients (array of strings), replacementIngredients (array of strings), analysis (string). Example: {\"mealName\":\"Pasta\",\"calories\":450,\"ingredients\":[\"pasta\",\"tomato sauce\"],\"replacementIngredients\":[\"whole wheat pasta\"],\"analysis\":\"Nutritional info\"}"
                         ],
                         [
                             "type": "image",
@@ -196,8 +210,14 @@ class ClaudeService: ObservableObject {
             self.errorMessage = nil
         }
         
+        // Create URLSession with timeout configuration
+        let sessionConfig = URLSessionConfiguration.default
+        sessionConfig.timeoutIntervalForRequest = 60.0
+        sessionConfig.timeoutIntervalForResource = 120.0
+        let session = URLSession(configuration: sessionConfig)
+        
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             
         guard let httpResponse = response as? HTTPURLResponse else {
             await MainActor.run {
@@ -235,7 +255,10 @@ class ClaudeService: ObservableObject {
             
             logger.debug("Parsing Claude response", context: "Meal Analysis")
             
-            guard let jsonData = text.data(using: .utf8) else {
+            // Extract JSON from the response text (handle markdown code blocks or extra text)
+            let jsonText = extractJSON(from: text)
+            
+            guard let jsonData = jsonText.data(using: .utf8) else {
                 logger.apiError("Failed to convert text to data", context: "Meal Analysis")
                 await MainActor.run {
                     self.errorMessage = "Failed to parse response"
@@ -254,7 +277,7 @@ class ClaudeService: ObservableObject {
                 
                 return mealAnalysis
             } catch {
-                logger.apiError("Failed to decode JSON: \(error.localizedDescription)", context: "Meal Analysis")
+                logger.apiError("Failed to decode JSON: \(error.localizedDescription). Response text: \(text.prefix(200))", context: "Meal Analysis")
                 await MainActor.run {
                     self.errorMessage = "Failed to parse meal analysis: \(error.localizedDescription)"
                     self.isLoading = false
@@ -269,5 +292,34 @@ class ClaudeService: ObservableObject {
             }
             return nil
         }
+    }
+    
+    // MARK: - JSON Extraction Helper
+    
+    /// Extracts JSON from response text, handling markdown code blocks or extra text
+    private func extractJSON(from text: String) -> String {
+        var jsonText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Remove markdown code blocks if present (```json ... ``` or ``` ... ```)
+        if jsonText.hasPrefix("```") {
+            // Find the first newline after ```
+            if let firstNewline = jsonText.firstIndex(of: "\n") {
+                jsonText = String(jsonText[jsonText.index(after: firstNewline)...])
+            }
+            // Remove the closing ```
+            if let lastBackticks = jsonText.range(of: "```", options: .backwards) {
+                jsonText = String(jsonText[..<lastBackticks.lowerBound])
+            }
+            jsonText = jsonText.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        // Try to find JSON object boundaries if there's extra text
+        if let firstBrace = jsonText.firstIndex(of: "{") {
+            if let lastBrace = jsonText.lastIndex(of: "}") {
+                jsonText = String(jsonText[firstBrace...lastBrace])
+            }
+        }
+        
+        return jsonText
     }
 }
