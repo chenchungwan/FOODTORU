@@ -93,13 +93,20 @@ class ClaudeService: ObservableObject {
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 30.0 // 30 second timeout for test
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: testRequestBody)
             
             logger.apiRequest(url: url.absoluteString, method: "POST", context: "API Test")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
+            // Create URLSession with timeout configuration
+            let sessionConfig = URLSessionConfiguration.default
+            sessionConfig.timeoutIntervalForRequest = 30.0
+            sessionConfig.timeoutIntervalForResource = 60.0
+            let session = URLSession(configuration: sessionConfig)
+            
+            let (data, response) = try await session.data(for: request)
             
             if let httpResponse = response as? HTTPURLResponse {
                 logger.apiResponse(statusCode: httpResponse.statusCode, dataSize: data.count, context: "API Test")
@@ -190,12 +197,13 @@ class ClaudeService: ObservableObject {
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 60.0 // 60 second timeout
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
             
             logger.apiRequest(url: url.absoluteString, method: "POST", context: "Meal Analysis")
-            logger.imageProcessing(imageData.count, context: "Meal Analysis")
+            logger.imageProcessing(finalImageData.count, context: "Meal Analysis")
             
         } catch {
             logger.apiError("Failed to create request: \(error.localizedDescription)", context: "Meal Analysis")

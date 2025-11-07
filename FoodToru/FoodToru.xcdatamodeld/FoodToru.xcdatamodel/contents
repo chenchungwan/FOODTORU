@@ -9,7 +9,12 @@
         <attribute name="ingredients" optional="YES" attributeType="String"/>
         <attribute name="replacementIngredients" optional="YES" attributeType="String"/>
     </entity>
+    <entity name="UserPreferences" representedClassName="UserPreferences" syncable="YES" codeGenerationType="class">
+        <attribute name="hasAcknowledgedDisclaimer" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="disclaimerAcknowledgmentDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+    </entity>
     <elements>
         <element name="Item" positionX="-63" positionY="-18" width="128" height="44"/>
+        <element name="UserPreferences" positionX="-63" positionY="9" width="128" height="44"/>
     </elements>
 </model>

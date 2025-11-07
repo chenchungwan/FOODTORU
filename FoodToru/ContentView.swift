@@ -12,11 +12,15 @@ struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @StateObject private var claudeService = ClaudeService()
     @StateObject private var persistenceController = PersistenceController.shared
+    @StateObject private var dailyLimitService = DailyLimitService.shared
     @State private var showingCamera = false
     @State private var selectedImage: UIImage?
     @State private var showingSettings = false
+    @State private var showingLimitAlert = false
+    @State private var showingDisclaimer = false
     
     private let logger = Logger.shared
+    private let hasSeenDisclaimerKey = "hasSeenDisclaimer"
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: false)],
@@ -26,6 +30,9 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack {
+                // Daily Limit Banner
+                dailyLimitBanner
+                
                 if items.isEmpty {
                     VStack(spacing: 20) {
                         Image(systemName: "camera.fill")
@@ -69,7 +76,11 @@ struct ContentView: View {
                 }
                 ToolbarItem {
                     Button(action: {
-                        showingCamera = true
+                        if dailyLimitService.canAnalyzeMeal() {
+                            showingCamera = true
+                        } else {
+                            showingLimitAlert = true
+                        }
                     }) {
                         Label("Take Photo", systemImage: "camera")
                     }
@@ -81,10 +92,18 @@ struct ContentView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
+            .sheet(isPresented: $showingDisclaimer) {
+                DisclaimerView(hasSeenDisclaimer: $showingDisclaimer)
+            }
             .onChange(of: selectedImage) { _, newImage in
                 if let image = newImage {
                     analyzeMeal(image: image)
                 }
+            }
+            .alert("Daily Limit Reached", isPresented: $showingLimitAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(dailyLimitAlertMessage)
             }
             .alert("Error", isPresented: .constant(claudeService.errorMessage != nil || persistenceController.lastError != nil)) {
                 if persistenceController.lastError != nil {
@@ -100,18 +119,7 @@ struct ContentView: View {
                     }
                 }
             } message: {
-                if let claudeError = claudeService.errorMessage {
-                    Text(claudeError)
-                } else if let coreDataError = persistenceController.lastError {
-                    VStack {
-                        Text(coreDataError.localizedDescription)
-                        if let suggestion = coreDataError.recoverySuggestion {
-                            Text(suggestion)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
+                Text(errorAlertMessage)
             }
             .overlay(
                 Group {
@@ -129,7 +137,66 @@ struct ContentView: View {
             // Ensure pre-configured API key is initialized (backup in case app init timing is off)
             KeychainService.shared.initializePreconfiguredKeyIfNeeded()
             testAPIConnection()
+            
+            // Show disclaimer on first launch - check Core Data first, then UserDefaults as fallback
+            let hasAcknowledged = UserPreferencesService.shared.hasAcknowledgedDisclaimer(context: viewContext)
+            let hasAcknowledgedFallback = UserDefaults.standard.bool(forKey: hasSeenDisclaimerKey)
+            
+            if !hasAcknowledged && !hasAcknowledgedFallback {
+                showingDisclaimer = true
+            } else if hasAcknowledgedFallback && !hasAcknowledged {
+                // Migrate from UserDefaults to Core Data
+                _ = UserPreferencesService.shared.acknowledgeDisclaimer(context: viewContext)
+            }
         }
+    }
+
+    // MARK: - Alert Messages
+    private var dailyLimitAlertMessage: String {
+        let limit = dailyLimitService.limit
+        return "You've reached your daily limit of \(limit) meal analyses. Your limit will reset tomorrow at midnight."
+    }
+    
+    private var errorAlertMessage: String {
+        if let claudeError = claudeService.errorMessage {
+            return claudeError
+        } else if let coreDataError = persistenceController.lastError {
+            var message = coreDataError.localizedDescription
+            if let suggestion = coreDataError.recoverySuggestion {
+                message += "\n\n\(suggestion)"
+            }
+            return message
+        }
+        return ""
+    }
+    
+    // MARK: - Daily Limit Banner
+    private var dailyLimitBanner: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "calendar")
+                        .foregroundColor(.blue)
+                    Text("Daily Limit")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                }
+                
+                Text("\(dailyLimitService.remainingCount) of \(dailyLimitService.limit) analyses remaining today")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                ProgressView(value: Double(dailyLimitService.currentCount), 
+                            total: Double(dailyLimitService.limit))
+                    .progressViewStyle(LinearProgressViewStyle(tint: dailyLimitService.remainingCount > 0 ? .blue : .red))
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(12)
+        .padding(.horizontal)
     }
 
     private func testAPIConnection() {
@@ -167,6 +234,8 @@ struct ContentView: View {
                     
                     do {
                         try viewContext.save()
+                        // Record successful analysis only after successful save
+                        dailyLimitService.recordSuccessfulAnalysis()
                     } catch {
                         let nsError = error as NSError
                         let coreDataError = CoreDataErrorHandler.handleSaveError(nsError)

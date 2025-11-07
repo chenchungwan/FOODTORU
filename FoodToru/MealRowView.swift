@@ -49,6 +49,17 @@ struct MealRowView: View {
                             .foregroundColor(.secondary)
                     }
                     
+                    if userSettings.hasCompleteBiometrics {
+                        HStack {
+                            Image(systemName: "percent")
+                                .foregroundColor(.blue)
+                                .font(.caption2)
+                            Text("\(bmrPercentage, specifier: "%.1f")% BMR")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
                     HStack {
                         Image(systemName: "figure.walk")
                             .foregroundColor(.blue)
@@ -78,6 +89,16 @@ struct MealRowView: View {
         .onAppear {
             loadUserSettings()
         }
+    }
+    
+    // MARK: - Computed Properties
+    
+    /// Calculate meal calories as percentage of daily BMR
+    private var bmrPercentage: Double {
+        guard userSettings.hasCompleteBiometrics else { return 0 }
+        let bmr = userSettings.bmr
+        guard bmr > 0 else { return 0 }
+        return (Double(item.calories) / bmr) * 100
     }
     
     private func loadUserSettings() {

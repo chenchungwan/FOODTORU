@@ -26,6 +26,11 @@ enum UnitSystem: String, CaseIterable {
     }
 }
 
+enum Gender: String, CaseIterable {
+    case male = "Male"
+    case female = "Female"
+}
+
 enum ExerciseType: String, CaseIterable {
     case walking = "Walking (3 mph)"
     case briskWalking = "Brisk Walking (4 mph)"
@@ -76,6 +81,7 @@ class UserSettings: ObservableObject {
     @Published var height: Double = 0
     @Published var weight: Double = 0
     @Published var age: Int = 0
+    @Published var gender: Gender = .male
     @Published var unitSystem: UnitSystem = .imperial
     @Published var preferredExercise: ExerciseType = .walking
     
@@ -107,12 +113,28 @@ class UserSettings: ObservableObject {
     var bmr: Double {
         guard hasCompleteBiometrics else { return 0 }
         
-        let heightM = heightInMeters
+        let heightCm = heightInMeters * 100
         let weightKg = weightInKg
         
         // Mifflin-St Jeor Equation
-        let bmr = (10 * weightKg) + (6.25 * heightM * 100) - (5 * Double(age)) + 5
-        return bmr
+        // Male: BMR = (10 × weight in kg) + (6.25 × height in cm) - (5 × age in years) + 5
+        // Female: BMR = (10 × weight in kg) + (6.25 × height in cm) - (5 × age in years) - 161
+        let baseBMR = (10 * weightKg) + (6.25 * heightCm) - (5 * Double(age))
+        let genderConstant = gender == .male ? 5.0 : -161.0
+        return baseBMR + genderConstant
+    }
+    
+    // Calculate BMI (Body Mass Index)
+    var bmi: Double {
+        guard hasCompleteBiometrics else { return 0 }
+        
+        let heightM = heightInMeters
+        let weightKg = weightInKg
+        
+        guard heightM > 0 else { return 0 }
+        
+        // BMI = weight (kg) / height (m)²
+        return weightKg / (heightM * heightM)
     }
     
     // Calculate calories burned per minute for preferred exercise
