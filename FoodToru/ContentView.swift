@@ -12,12 +12,9 @@ struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @StateObject private var claudeService = ClaudeService()
     @StateObject private var persistenceController = PersistenceController.shared
-    @StateObject private var subscriptionService = SubscriptionService.shared
     @State private var showingCamera = false
     @State private var selectedImage: UIImage?
     @State private var showingSettings = false
-    @State private var showingSubscription = false
-    @State private var showingSubscriptionAlert = false
     
     private let logger = Logger.shared
 
@@ -29,11 +26,6 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // Subscription Status Banner
-                if !subscriptionService.subscriptionInfo.isSubscribed {
-                    subscriptionStatusBanner
-                }
-                
                 if items.isEmpty {
                     VStack(spacing: 20) {
                         Image(systemName: "camera.fill")
@@ -77,11 +69,7 @@ struct ContentView: View {
                 }
                 ToolbarItem {
                     Button(action: {
-                        if subscriptionService.canAnalyzeMeal() {
-                            showingCamera = true
-                        } else {
-                            showingSubscriptionAlert = true
-                        }
+                        showingCamera = true
                     }) {
                         Label("Take Photo", systemImage: "camera")
                     }
@@ -92,9 +80,6 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
-            }
-            .sheet(isPresented: $showingSubscription) {
-                SubscriptionView()
             }
             .onChange(of: selectedImage) { _, newImage in
                 if let image = newImage {
@@ -128,14 +113,6 @@ struct ContentView: View {
                     }
                 }
             }
-            .alert("Subscription Required", isPresented: $showingSubscriptionAlert) {
-                Button("Subscribe") {
-                    showingSubscription = true
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("You've used all \(subscriptionService.subscriptionInfo.freeMealsLimit) free meal analyses. Subscribe to continue analyzing meals for just $0.99/month.")
-            }
             .overlay(
                 Group {
                     if claudeService.isLoading {
@@ -151,41 +128,6 @@ struct ContentView: View {
             #endif
             testAPIConnection()
         }
-    }
-    
-    // MARK: - Subscription Status Banner
-    private var subscriptionStatusBanner: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "crown.fill")
-                        .foregroundColor(.yellow)
-                    Text("Free Trial")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                }
-                
-                Text("\(subscriptionService.subscriptionInfo.freeMealsUsed)/\(subscriptionService.subscriptionInfo.freeMealsLimit) analyses used")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                ProgressView(value: Double(subscriptionService.subscriptionInfo.freeMealsUsed), 
-                            total: Double(subscriptionService.subscriptionInfo.freeMealsLimit))
-                    .progressViewStyle(LinearProgressViewStyle(tint: .yellow))
-            }
-            
-            Spacer()
-            
-            Button("Upgrade") {
-                showingSubscription = true
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-        }
-        .padding()
-        .background(Color.yellow.opacity(0.1))
-        .cornerRadius(12)
-        .padding(.horizontal)
     }
 
     private func testAPIConnection() {
@@ -210,9 +152,6 @@ struct ContentView: View {
         Task {
             if let analysis = await claudeService.analyzeMeal(image: image) {
                 await MainActor.run {
-                    // Record the meal usage for subscription tracking
-                    subscriptionService.recordMealAnalysis()
-                    
                     let newItem = Item(context: viewContext)
                     newItem.timestamp = Date()
                     newItem.mealName = analysis.mealName

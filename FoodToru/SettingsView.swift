@@ -10,13 +10,11 @@ import SwiftUI
 struct SettingsView: View {
     @StateObject private var userSettings = UserSettings()
     @StateObject private var claudeService = ClaudeService()
-    @StateObject private var subscriptionService = SubscriptionService.shared
     @Environment(\.presentationMode) var presentationMode
     
     @State private var apiKey = ""
     @State private var showingAPIKeyAlert = false
     @State private var apiKeyStatus = "Not configured"
-    @State private var showingSubscription = false
     
     var body: some View {
         NavigationView {
@@ -42,42 +40,6 @@ struct SettingsView: View {
                         }) {
                             Text("Remove API Key")
                                 .foregroundColor(.red)
-                        }
-                    }
-                }
-                
-                Section(header: Text("Subscription")) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Image(systemName: subscriptionService.subscriptionInfo.isSubscribed ? "checkmark.circle.fill" : "crown.fill")
-                                    .foregroundColor(subscriptionService.subscriptionInfo.isSubscribed ? .green : .yellow)
-                                Text(subscriptionService.subscriptionInfo.isSubscribed ? "Subscribed" : "Free Trial")
-                                    .font(.headline)
-                                    .fontWeight(.semibold)
-                            }
-                            
-                            if subscriptionService.subscriptionInfo.isSubscribed {
-                                if let expirationDate = subscriptionService.subscriptionInfo.expirationDate {
-                                    Text("Expires: \(expirationDate, formatter: dateFormatter)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            } else {
-                                Text("\(subscriptionService.subscriptionInfo.freeMealsUsed)/\(subscriptionService.subscriptionInfo.freeMealsLimit) analyses used")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        if !subscriptionService.subscriptionInfo.isSubscribed {
-                            Button("Upgrade") {
-                                showingSubscription = true
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
                         }
                     }
                 }
@@ -188,17 +150,6 @@ struct SettingsView: View {
         } message: {
             Text("Enter your Claude API key from Anthropic Console. The key will be stored securely on your device.")
         }
-        .sheet(isPresented: $showingSubscription) {
-            SubscriptionView()
-        }
-    }
-    
-    // MARK: - Date Formatter
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
     }
     
     private func loadSettings() {
