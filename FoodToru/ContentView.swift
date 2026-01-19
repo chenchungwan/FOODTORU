@@ -227,7 +227,8 @@ struct ContentView: View {
                     newItem.calories = Int32(analysis.calories)
                     newItem.ingredients = analysis.ingredients.joined(separator: ", ")
                     newItem.replacementIngredients = analysis.replacementIngredients.joined(separator: ", ")
-                    
+                    newItem.referenceSources = analysis.referenceSources.joined(separator: "\n")
+
                     logger.debug("Saving meal data", context: "Meal Save")
                     newItem.analysis = analysis.analysis
                     newItem.photoData = image.jpegData(compressionQuality: 0.8)

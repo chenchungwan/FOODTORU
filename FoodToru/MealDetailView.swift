@@ -104,7 +104,7 @@ struct MealDetailView: View {
                         Text("Nutritional Analysis")
                             .font(.headline)
                             .fontWeight(.semibold)
-                        
+
                         Text(analysis)
                             .font(.body)
                             .padding()
@@ -112,7 +112,43 @@ struct MealDetailView: View {
                             .cornerRadius(8)
                     }
                 }
-                
+
+                // Reference Sources
+                if let referenceSources = item.referenceSources, !referenceSources.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Reference Sources")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(referenceSources.components(separatedBy: "\n"), id: \.self) { source in
+                                if !source.isEmpty, let url = URL(string: source) {
+                                    Link(destination: url) {
+                                        HStack {
+                                            Image(systemName: "link")
+                                                .foregroundColor(.blue)
+                                                .font(.caption)
+                                            Text(source)
+                                                .font(.caption)
+                                                .foregroundColor(.blue)
+                                                .underline()
+                                                .lineLimit(2)
+                                            Spacer()
+                                            Image(systemName: "arrow.up.right.square")
+                                                .foregroundColor(.blue)
+                                                .font(.caption)
+                                        }
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                }
+
                 // Alternative Exercises
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Alternative Exercises")

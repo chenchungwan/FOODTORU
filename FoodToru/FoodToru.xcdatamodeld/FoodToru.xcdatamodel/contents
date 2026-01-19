@@ -8,6 +8,7 @@
         <attribute name="analysis" optional="YES" attributeType="String"/>
         <attribute name="ingredients" optional="YES" attributeType="String"/>
         <attribute name="replacementIngredients" optional="YES" attributeType="String"/>
+        <attribute name="referenceSources" optional="YES" attributeType="String"/>
     </entity>
     <entity name="UserPreferences" representedClassName="UserPreferences" syncable="YES" codeGenerationType="class">
         <attribute name="hasAcknowledgedDisclaimer" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>

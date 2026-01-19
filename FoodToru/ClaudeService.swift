@@ -14,6 +14,7 @@ struct MealAnalysis: Codable {
     let ingredients: [String]
     let replacementIngredients: [String]
     let analysis: String
+    let referenceSources: [String]
 }
 
 class ClaudeService: ObservableObject {
@@ -169,7 +170,7 @@ class ClaudeService: ObservableObject {
                     "content": [
                         [
                             "type": "text",
-                            "text": "Analyze this food image and provide: 1) The name of the meal/dish, 2) Estimated total calories, 3) List of main ingredients, 4) Healthier replacement ingredient suggestions, 5) Brief nutritional analysis. Return ONLY valid JSON without any markdown formatting, code blocks, or extra text. Use this exact format with keys: mealName (string), calories (integer), ingredients (array of strings), replacementIngredients (array of strings), analysis (string). Example: {\"mealName\":\"Pasta\",\"calories\":450,\"ingredients\":[\"pasta\",\"tomato sauce\"],\"replacementIngredients\":[\"whole wheat pasta\"],\"analysis\":\"Nutritional info\"}"
+                            "text": "Analyze this food image and provide: 1) The name of the meal/dish, 2) Estimated total calories, 3) List of main ingredients, 4) Healthier replacement ingredient suggestions, 5) Brief nutritional analysis, 6) URLs to reference sources used for nutritional information (such as USDA FoodData Central, nutrition databases, or reputable nutritional resources). Return ONLY valid JSON without any markdown formatting, code blocks, or extra text. Use this exact format with keys: mealName (string), calories (integer), ingredients (array of strings), replacementIngredients (array of strings), analysis (string), referenceSources (array of URL strings). Example: {\"mealName\":\"Pasta\",\"calories\":450,\"ingredients\":[\"pasta\",\"tomato sauce\"],\"replacementIngredients\":[\"whole wheat pasta\"],\"analysis\":\"Nutritional info\",\"referenceSources\":[\"https://fdc.nal.usda.gov/\",\"https://nutritiondata.self.com/\"]}"
                         ],
                         [
                             "type": "image",
